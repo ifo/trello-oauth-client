@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/mrjones/oauth"
 )
@@ -48,10 +50,55 @@ func makeConsumer(conf Config, name, expiration, scope string) (*oauth.Consumer,
 		return nil, fmt.Errorf("Application name required for oauth consumer")
 	}
 	c.AdditionalAuthorizationUrlParams["name"] = name
-	// TODO check to see if expiration is valid
+	err := validateExpiration(expiration)
+	if err != nil {
+		return nil, err
+	}
 	c.AdditionalAuthorizationUrlParams["expiration"] = expiration
-	// TODO check to see if scope is valid
+	err = validateScope(scope)
+	if err != nil {
+		return nil, err
+	}
 	c.AdditionalAuthorizationUrlParams["scope"] = scope
 
 	return c, nil
+}
+
+func validateExpiration(exp string) error {
+	exipirations := []string{"1hour", "1day", "30days", "never"}
+	for _, e := range exipirations {
+		if e == exp {
+			return nil
+		}
+	}
+	return fmt.Errorf("validateExpiration failed, no such expiration time exists: %s", exp)
+}
+
+func validateScope(scope string) error {
+	scopes := strings.Split(scope, ",")
+	sort.Strings(scopes)
+	validScopeLists := [][]string{
+		[]string{"read"},
+		[]string{"read", "write"},
+		[]string{"account", "read"},
+		[]string{"account", "read", "write"}}
+
+	for _, s := range validScopeLists {
+		if compareStringSlices(s, scopes) {
+			return nil
+		}
+	}
+	return fmt.Errorf("validateScope failed, no such scope exists: %s", scope)
+}
+
+func compareStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
