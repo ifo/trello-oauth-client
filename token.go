@@ -2,66 +2,42 @@ package trelgo
 
 import (
 	"fmt"
-	"net/url"
+	"net/http"
 
 	"github.com/mrjones/oauth"
 )
 
-// TODO make this configurable
-// and not just the location of saving, but the method (database hookups?)
-const tokenLocation = ".secret/token.secret"
+var (
+	requestTokenCache *oauth.RequestToken
+	accessTokenCache  *oauth.AccessToken
+	tokenUrl          string
+)
 
-func SetupConsumer(consumerKey, consumerSecret, name, expiration, scope string) error {
-	config := getConfig()
-	if consumerKey != "" {
-		config.ConsumerKey = consumerKey
-	}
-	if consumerSecret != "" {
-		config.ConsumerSecret = consumerSecret
-	}
-	var err error
-	c, err = makeConsumer(config, name, expiration, scope)
-	return err
-}
-
-func accessTokenToString(t *oauth.AccessToken) string {
-	return "oauth_token=" + t.Token + "&oauth_token_secret=" + t.Secret
-}
-
-func makeAccessTokenFromString(data string) (*oauth.AccessToken, error) {
-	var (
-		TOKEN_PARAM        = "oauth_token"
-		TOKEN_SECRET_PARAM = "oauth_token_secret"
-	)
-	parts, err := url.ParseQuery(data)
+func HttpGetToken(w http.ResponseWriter, r *http.Request) {
+	url := fmt.Sprintf("http://%s%s", r.Host, tokenUrl)
+	token, requestUrl, err := consumerCache.GetRequestTokenAndUrl(url)
 	if err != nil {
-		return nil, err
+		fmt.Fprintf(w, "HttpGetToken problem: %v", err)
+	} else {
+		requestTokenCache = token
+		http.Redirect(w, r, requestUrl, http.StatusTemporaryRedirect)
 	}
-
-	tokenParam := parts[TOKEN_PARAM]
-	parts.Del(TOKEN_PARAM)
-	if len(tokenParam) < 1 {
-		return nil, fmt.Errorf("Missing " + TOKEN_PARAM + " in response. " +
-			"Full response body: '" + data + "'")
-	}
-	tokenSecretParam := parts[TOKEN_SECRET_PARAM]
-	parts.Del(TOKEN_SECRET_PARAM)
-	if len(tokenSecretParam) < 1 {
-		return nil, fmt.Errorf("Missing " + TOKEN_SECRET_PARAM + " in response." +
-			"Full response body: '" + data + "'")
-	}
-
-	additionalData := parseAdditionalData(parts)
-
-	return &oauth.AccessToken{tokenParam[0], tokenSecretParam[0], additionalData}, nil
 }
 
-func parseAdditionalData(parts url.Values) map[string]string {
-	params := make(map[string]string)
-	for key, value := range parts {
-		if len(value) > 0 {
-			params[key] = value[0]
-		}
+func HttpSaveToken(w http.ResponseWriter, r *http.Request) {
+	values := r.URL.Query()
+	verificationCode := values.Get("oauth_verifier")
+	token := values.Get("oauth_token")
+	if requestTokenCache.Token != token {
+		fmt.Fprintf(w, "HttpSaveToken request token did not match")
+		return
 	}
-	return params
+
+	accessToken, err := consumerCache.AuthorizeToken(requestTokenCache, verificationCode)
+	if err != nil {
+		fmt.Fprintf(w, "HttpSaveToken: %v", err)
+	} else {
+		accessTokenCache = accessToken
+		fmt.Fprintf(w, "Trello Token Saved")
+	}
 }

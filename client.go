@@ -2,7 +2,6 @@ package trelgo
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
@@ -10,29 +9,40 @@ import (
 	"github.com/mrjones/oauth"
 )
 
-func MakeClientFromFile(consumer *oauth.Consumer, path string) (*http.Client, error) {
+var (
+	consumerCache *oauth.Consumer
+)
+
+func MakeClient(consumer *oauth.Consumer, accessToken *oauth.AccessToken) (*http.Client, error) {
+	if accessToken == nil && accessTokenCache == nil {
+		return nil, fmt.Errorf("MakeClient failed - no oauth.AccessToken")
+	}
+	if accessToken == nil {
+		accessToken = accessTokenCache
+	}
+	if consumer == nil && consumerCache == nil {
+		return nil, fmt.Errorf("MakeClient failed - no consumer")
+	}
 	if consumer == nil {
-		consumer = c
+		consumer = consumerCache
 	}
-	if path == "" {
-		path = tokenLocation
-	}
+	return consumer.MakeHttpClient(accessToken)
+}
 
-	rawData, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
+func SetupConsumer(consumerKey, consumerSecret, name, expiration, scope string) error {
+	config := getConfig()
+	if consumerKey != "" {
+		config.ConsumerKey = consumerKey
 	}
-
-	accessToken, err := makeAccessTokenFromString(string(rawData))
-	if err != nil {
-		return nil, err
+	if consumerSecret != "" {
+		config.ConsumerSecret = consumerSecret
 	}
-
-	client, err := consumer.MakeHttpClient(accessToken)
+	consumer, err := makeConsumer(config, name, expiration, scope)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return client, nil
+	consumerCache = consumer
+	return nil
 }
 
 func makeConsumer(conf Config, name, expiration, scope string) (*oauth.Consumer, error) {
