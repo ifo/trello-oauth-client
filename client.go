@@ -81,7 +81,7 @@ func validateExpiration(exp string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("validateExpiration failed, no such expiration time exists: %s", exp)
+	return fmt.Errorf("validateExpiration, no such expiration time: %s", exp)
 }
 
 func validateScope(scope string) error {
