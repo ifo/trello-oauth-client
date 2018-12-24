@@ -20,6 +20,8 @@ func MakeClient(consumer *oauth.Consumer, accessToken *oauth.AccessToken) (*http
 	if accessToken == nil {
 		accessToken = accessTokenCache
 	}
+	// TODO: check to see if a consumer needs a Key and Secret to make a Client
+	// if the access token already exists and is valid
 	if consumer == nil && consumerCache == nil {
 		return nil, fmt.Errorf("MakeClient failed - no consumer")
 	}
