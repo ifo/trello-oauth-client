@@ -1,3 +1,3 @@
-# trelgo
+# trello-oauth-client
 
-A golang api client for Trello.
+A small set of weird helpers originally made to handle oauth1 for Trello.
